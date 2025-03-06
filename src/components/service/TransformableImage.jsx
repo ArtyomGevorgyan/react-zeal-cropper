@@ -1,0 +1,220 @@
+import React, { Component, createRef } from 'react';
+import {
+  debounce,
+  touchesToImageTransform,
+  wheelEventToImageTransform,
+} from 'advanced-cropper';
+
+class TransformableImageEvent {
+  constructor({ active }) {
+    this.active = active;
+    this.defaultPrevented = false;
+  }
+
+  preventDefault() {
+    this.defaultPrevented = true;
+  }
+}
+
+export class TransformableImage extends Component {
+  static defaultProps = {
+    touchMove: true,
+    mouseMove: true,
+    touchScale: true,
+    touchRotate: false,
+    wheelScale: true,
+    timeout: 500,
+  };
+
+  constructor(props) {
+    super(props);
+    this.transforming = false;
+    this.touches = [];
+    this.anchor = { left: 0, top: 0 };
+    this.container = createRef();
+    this.debouncedProcessEnd = debounce(this.processEnd, props.timeout);
+  }
+
+  processMove = (newTouches) => {
+    const { onTransform, touchScale, touchMove, touchRotate } = this.props;
+    const container = this.container.current;
+    if (container && onTransform) {
+      onTransform(
+        touchesToImageTransform(newTouches, this.touches, container, {
+          scale: touchScale,
+          rotate: touchRotate,
+          move: touchMove,
+        }),
+      );
+      this.touches = newTouches;
+    }
+  };
+
+  processEnd = () => {
+    const { onTransformEnd } = this.props;
+    if (this.transforming) {
+      this.transforming = false;
+      if (onTransformEnd) {
+        onTransformEnd();
+      }
+    }
+  };
+
+  processStart = () => {
+    this.transforming = true;
+    this.debouncedProcessEnd.clear();
+  };
+
+  processEvent = (nativeEvent) => {
+    const { onEvent, disabled, preventDefault = true } = this.props;
+    const transformEvent = new TransformableImageEvent({ active: this.transforming });
+
+    if (onEvent) {
+      onEvent(transformEvent, nativeEvent);
+    } else if (preventDefault) {
+      nativeEvent.preventDefault();
+      nativeEvent.stopPropagation();
+    }
+
+    return !disabled && !transformEvent.defaultPrevented;
+  };
+
+  onWheel = (event) => {
+    const { onTransform, wheelScale } = this.props;
+    const container = this.container.current;
+
+    if (wheelScale) {
+      if (this.processEvent(event)) {
+        this.processStart();
+        if (onTransform && container) {
+          onTransform(
+            wheelEventToImageTransform(event, container, wheelScale === true ? 0.1 : wheelScale.ratio),
+          );
+        }
+
+        if (!this.touches.length) {
+          this.debouncedProcessEnd();
+        }
+      }
+    }
+  };
+
+  onTouchStart = (event) => {
+    const { touchMove, touchScale, touchRotate } = this.props;
+    if (event.cancelable && (touchMove || ((touchScale || touchRotate) && event.touches.length > 1))) {
+      if (this.processEvent(event)) {
+        const container = this.container.current;
+        if (container) {
+          const { left, top, bottom, right } = container.getBoundingClientRect();
+          this.touches = Array.from(event.touches).filter(
+            (touch) =>
+              touch.clientX > left &&
+              touch.clientX < right &&
+              touch.clientY > top &&
+              touch.clientY < bottom,
+          );
+        }
+      }
+    }
+  };
+
+  onTouchEnd = (event) => {
+    if (event.touches.length === 0) {
+      this.touches = [];
+      this.processEnd();
+    }
+  };
+
+  onTouchMove = (event) => {
+    if (this.touches.length) {
+      const touches = [...event.touches].filter(
+        (touch) =>
+          !touch.identifier ||
+          this.touches.find((anotherTouch) => anotherTouch.identifier === touch.identifier),
+      );
+
+      if (this.processEvent(event)) {
+        this.processMove(touches);
+        this.processStart();
+      }
+    }
+  };
+
+  onMouseDown = (event) => {
+    const { mouseMove } = this.props;
+    if (mouseMove && 'buttons' in event && event.buttons === 1) {
+      if (this.processEvent(event)) {
+        const touch = {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        };
+        this.touches = [touch];
+        this.processStart();
+      }
+    }
+  };
+
+  onMouseMove = (event) => {
+    if (this.touches.length) {
+      if (this.processEvent(event)) {
+        this.processMove([
+          {
+            clientX: event.clientX,
+            clientY: event.clientY,
+          },
+        ]);
+      }
+    }
+  };
+
+  onMouseUp = () => {
+    this.touches = [];
+    this.processEnd();
+  };
+
+  shouldComponentUpdate() {
+    return true;
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('mouseup', this.onMouseUp);
+    window.removeEventListener('mousemove', this.onMouseMove);
+    window.removeEventListener('touchmove', this.onTouchMove);
+    window.removeEventListener('touchend', this.onTouchEnd);
+    const container = this.container.current;
+    if (container) {
+      container.removeEventListener('touchstart', this.onTouchStart);
+      container.removeEventListener('mousedown', this.onMouseDown);
+      container.removeEventListener('wheel', this.onWheel);
+    }
+  }
+
+  componentDidMount() {
+    window.addEventListener('mouseup', this.onMouseUp, { passive: false });
+    window.addEventListener('mousemove', this.onMouseMove, { passive: false });
+    window.addEventListener('touchmove', this.onTouchMove, { passive: false });
+    window.addEventListener('touchend', this.onTouchEnd, { passive: false });
+
+    const container = this.container.current;
+    if (container) {
+      container.addEventListener('touchstart', this.onTouchStart, {
+        passive: false,
+      });
+      container.addEventListener('mousedown', this.onMouseDown, {
+        passive: false,
+      });
+      container.addEventListener('wheel', this.onWheel, {
+        passive: false,
+      });
+    }
+  }
+
+  render() {
+    const { className, children, style } = this.props;
+    return (
+      <div className={className} style={style} ref={this.container}>
+        {children}
+      </div>
+    );
+  }
+}

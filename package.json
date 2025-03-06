@@ -1,0 +1,41 @@
+{
+  "name": "react-zeal-cropper",
+  "version": "1.0.0",
+  "description": "A lightweight image cropper based on ClassicCropper from react-advanced-cropper",
+  "main": "dist/bundle.js",
+  "module": "dist/bundle.js",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "start": "node dist/bundle.js"
+  },
+  "keywords": [
+    "image-cropper",
+    "react",
+    "cropping",
+    "classic-cropper"
+  ],
+  "author": "zealous",
+  "license": "MIT",
+  "dependencies": {
+    "advanced-cropper": "^0.17.1",
+    "classnames": "^2.5.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.9",
+    "@babel/preset-env": "^7.26.9",
+    "@babel/preset-react": "^7.26.3",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^28.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "babel-eslint": "^10.1.0",
+    "eslint": "^9.21.0",
+    "rollup": "^4.34.9"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
